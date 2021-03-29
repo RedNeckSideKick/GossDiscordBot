@@ -1,0 +1,9 @@
+{
+    "python.pythonPath": ".venv/bin/python",
+    "python.analysis.extraPaths":
+    [
+        "./goss_bot",
+        "./goss_bot/src",
+        "./goss_bot/config"
+    ]
+}

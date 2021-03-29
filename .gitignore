@@ -1,3 +1,9 @@
+# Ignore secret file containing token and other critical information
+secret.ini
+
+# Ignore log file directory
+logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
