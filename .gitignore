@@ -133,3 +133,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+tests/google-api/credentials.json
+
+tests/google-api/token.json
+
+tests/pygsheets/client_secret.json
+
+tests/pygsheets/sheets.googleapis.com-python.json
