@@ -39,12 +39,10 @@ def main():
     config = ConfigObj(os.path.join(_dir, _CONFIG_DIR, _CONFIG_FILE))
     secret = ConfigObj(os.path.join(_dir, _CONFIG_DIR, _SECRET_FILE))
 
-    # Create bot and run in context manager
+    # Create bot and run
     bot = GossBot(config=config, secret=secret, path=_dir)
-    with bot:
-        logging.debug("In context manager")
-        bot.run()
-        logging.debug("Exiting context manager")
+    exit_code = bot.run()
+    logging.info(f"Bot exited with result {exit_code}")
 
 # Main script execution
 if __name__ == "__main__":

@@ -9,23 +9,16 @@ import asyncio
 import discord
 import discord.ext.commands as dcmds
 
-class BotBaseError(Exception):
-    pass
-
-class BotContextError(BotBaseError):
-    pass
-
 # Bot framework, derived from Discord bot class
 class GossBot(dcmds.Bot):
     def __init__(self, config: ConfigObj, secret: ConfigObj, path: os.path, **kwargs):
         # Initialize member variables
-        self._context_managed = False
         self.config = config
         self.secret = secret
         self.path = path
 
         # Create logger
-        self.log = logging.getLogger("GossBot")
+        self.log = logging.getLogger(__name__.split('.')[-1])
 
         # Initialize bot component
         self.log.info("Initializing bot")
@@ -35,67 +28,61 @@ class GossBot(dcmds.Bot):
 
         return None
 
-    # Entry/exit methods - modified from discord.py Client.run()
-    async def _starter(self):
-        await self.start(self.secret["token"])
+    # Bot start method
+    def run(self):
+        # if not self._context_managed:
+        #     raise BotContextError("Please run this bot using a context manager")
 
-    async def _stopper(self):
-        await self.change_presence(status=discord.Status.idle, activity=discord.Game(name="Daisy_Bell.mp3"))
-        await self.close()
-    
-    def _stop_loop_on_completion(self, f):
-        self.loop.stop()
+        self.log.info("Starting bot...")
 
-    # Context manager entry method
-    def __enter__(self):
-        self.log.debug("Entering context manager")
-        self._context_managed = True
+        # Signal handler
+        def handle_signal(signum):
+            self.log.info(f"Intercepted signal (SIGNUM {signum}), stopping loop.")
+            self.loop.stop()
 
         # Interupt signal handlers for asyncio loop - copied from discord.py Client.run()
         try:
-            self.loop.add_signal_handler(signal.SIGINT, lambda: self.loop.stop())
-            self.loop.add_signal_handler(signal.SIGTERM, lambda: self.loop.stop())
-        except NotImplementedError:
-            pass
-        # Add future for start method - modified from discord.py Client.run()
-        self._starter_future = asyncio.ensure_future(self._starter(), loop=self.loop)
-        self._starter_future.add_done_callback(self._stop_loop_on_completion)
+            # Unlike normal signals, asyncio does not pass the signal or frame along
+            self.loop.add_signal_handler(signal.SIGINT, lambda : handle_signal(signal.SIGINT))
+            self.loop.add_signal_handler(signal.SIGTERM, lambda : handle_signal(signal.SIGTERM))
+        except NotImplementedError as e:
+            self.log.warn(f"Issue establishing signal handling for asyncio event loop, {e}")
 
-        return self
-
-    # Context manager exit method
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is not None:
-            self.log.info(f"Exiting context manager with {exc_type, exc_value, traceback}")
-        else:
-            self.log.debug(f"Exiting context manager with {exc_type, exc_value, traceback}")
-
-        if not self.is_closed():
-            self.loop.run_until_complete(asyncio.ensure_future(self._stopper(), loop=self.loop))
-
-        # Cleanup stuff - modified from discord.py Client.run()
-        self._starter_future.remove_done_callback(self._stop_loop_on_completion)
-        self.log.info('Cleaning up tasks.')
-        discord.client._cleanup_loop(self.loop)
-
-        if not self._starter_future.cancelled():
+        # Runner/completion methods - modified from discord.py Client.run()
+        async def runner():
             try:
-                return self._starter_future.result()
-            except KeyboardInterrupt:
-                # I am unsure why this gets raised here but suppress it anyway
-                return None
+                self.log.info(f"Establishing connection and logging in.")
+                await self.start(self.secret["token"])
+            finally:
+                if not self.is_closed():
+                    self.log.info("Logging out and closing connection.")
+                    await self.before_close()
+                    await self.close()
+        
+        def stop_loop_on_completion(future):
+            self.log.warn("Future completed, stopping loop.")
+            self.loop.stop()
 
-        self._context_managed = False
-        return None
+        # Add future for run method - modified from discord.py Client.run()
+        starter_future = asyncio.ensure_future(runner(), loop=self.loop)
+        starter_future.add_done_callback(stop_loop_on_completion)
 
-    # Bot start method
-    def run(self):
-        if not self._context_managed:
-            raise BotContextError("Please run this bot using a context manager")
+        try:
+            self.loop.run_forever() # Start asyncio loop - moved from try-except-finally in discord.py Client.run() to use context managers
+        except KeyboardInterrupt as e:
+            self.log.warn(f"Received {e}, terminating bot and event loop.")
+        finally:
+            starter_future.remove_done_callback(stop_loop_on_completion)
+            self.log.info('Cleaning up tasks.')
+            discord.client._cleanup_loop(self.loop)
 
-        self.log.info("Running bot...")
-        self.loop.run_forever() # Start asyncio loop - moved from try-except-finally in discord.py Client.run() to use context managers
-        self.log.debug("run() exiting...")
+        self.log.info("Bot has been shut down.")
+        if not starter_future.cancelled():
+            try:
+                return starter_future.result()
+            except KeyboardInterrupt as e:
+                # Original devs unsure why this gets raised here but suppress it anyway
+                return e
 
     # Method called upon successful connection to Discord
     async def on_ready(self):
@@ -104,3 +91,7 @@ class GossBot(dcmds.Bot):
 
         # Change bot status to something useful
         await self.change_presence(activity=discord.Game(name="with the Discord API"))
+
+    # Method called just before closing connection, any last-words actions before logging off.
+    async def before_close(self):
+        await self.change_presence(status=discord.Status.idle, activity=discord.Game(name="Daisy_Bell.mp3"))
