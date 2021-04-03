@@ -3,28 +3,47 @@
 import os
 import signal
 import logging
-from configobj import ConfigObj
+from datetime import datetime
+
+from discord.ext.commands.core import before_invoke
+
+# from configobj import ConfigObj
+
+from ..config import config, secret
 
 import asyncio
 import discord
 import discord.ext.commands as dcmds
+import discord_slash as dslash
+
+from .event_cog import EventCog
+from .basic_cog import BasicCog
 
 # Bot framework, derived from Discord bot class
 class GossBot(dcmds.Bot):
-    def __init__(self, config: ConfigObj, secret: ConfigObj, path: os.path, **kwargs):
+    def __init__(self, path: os.path, **kwargs):
         # Initialize member variables
-        self.config = config
-        self.secret = secret
         self.path = path
 
         # Create logger
-        self.log = logging.getLogger(__name__.split('.')[-1])
+        self.log = logging.getLogger(self.__class__.__name__)
 
         # Initialize bot component
         self.log.info("Initializing bot")
-        self.bot_intents = discord.Intents.default() # Request default intents
-        self.bot_intents.members = True  # Add member intents (this leaves just presences disabled)
-        super(GossBot, self).__init__(**self.config["Bot Options"], intents=self.bot_intents)
+        full_options = config.bot_options
+        full_options["intents"]  = discord.Intents.default()    # Request default intents
+        full_options["intents"].members = True  # Add member intents (this leaves just presences disabled)
+        full_options["status"]   = status=discord.Status.idle
+        full_options["activity"] = discord.Game(name="Starting up")
+        super(GossBot, self).__init__(**full_options)
+
+        # Initialize slash commands
+        self.slash = dslash.SlashCommand(self, sync_commands=True)
+
+        # Load functionality from Cogs
+        # Base functionality Cogs always loaded
+        self.add_cog(EventCog(self))
+        self.add_cog(BasicCog(self))
 
         return None
 
@@ -52,7 +71,7 @@ class GossBot(dcmds.Bot):
         async def runner():
             try:
                 self.log.info(f"Establishing connection and logging in.")
-                await self.start(self.secret["token"])
+                await self.start(secret.TOKEN)
             finally:
                 if not self.is_closed():
                     self.log.info("Logging out and closing connection.")
@@ -86,12 +105,21 @@ class GossBot(dcmds.Bot):
 
     # Method called upon successful connection to Discord
     async def on_ready(self):
+        self.last_ready = datetime.now()
         self.log.info(f"Bot ready: signed in as {self.user} (id:{self.user.id})")
-        self.log.info(f"I am a member of these guilds:\n{self.guilds}")
 
         # Change bot status to something useful
         await self.change_presence(activity=discord.Game(name="with the Discord API"))
 
+        self.log.info("Getting owner information")
+        self.app_info = await self.application_info()
+        self.owner_user = self.app_info.owner
+        if not self.owner_user.dm_channel:
+            self.log.warn("Had to create DM with owner")
+            await self.owner_user.create_dm()
+        await self.owner_user.dm_channel.send(f"{config.NAME} v{config.VERSION} connected at `{datetime.now()}`")
+
     # Method called just before closing connection, any last-words actions before logging off.
     async def before_close(self):
+        await self.owner_user.dm_channel.send(f"Disconnected at `{datetime.now()}`")
         await self.change_presence(status=discord.Status.idle, activity=discord.Game(name="Daisy_Bell.mp3"))
