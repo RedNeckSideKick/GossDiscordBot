@@ -26,7 +26,7 @@ class BasicCog(GossCogBase):
         embed = discord.Embed(title=f"{config.NAME} - v{config.VERSION}", description=self.bot.description)
         embed.add_field(name="Developer", value=config.DEVELOPER, inline=True)
         embed.add_field(name="Email", value=config.EMAIL, inline=True)
-        embed.add_field(name="Profile", value=f"@{self.bot.owner_user}", inline=True)
+        embed.add_field(name="Profile", value=f"@{self.bot.owner}", inline=True)
         embed.add_field(name="Github", value=f"[{config.REPO}]({config.REPO})", inline=False)
         embed.add_field(name="Uptime", value=hms_timedelta(datetime.now() - self.bot.last_ready), inline=True)
         embed.add_field(name="Latency", value=f"{self.bot.latency * 1000:.2f}ms", inline=True)
