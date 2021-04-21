@@ -19,6 +19,7 @@ import discord_slash as dslash
 from .event_cog import EventCog
 from .basic_cog import BasicCog
 from .admin_cog import AdminCog
+from .management_cog import ManagementCog
 
 # Bot framework, derived from Discord bot class
 class GossBot(dcmds.Bot):
@@ -46,6 +47,7 @@ class GossBot(dcmds.Bot):
         self.add_cog(EventCog(self))
         self.add_cog(BasicCog(self))
         self.add_cog(AdminCog(self))
+        self.add_cog(ManagementCog(self))
 
         return None
 
@@ -117,7 +119,7 @@ class GossBot(dcmds.Bot):
         await self.change_presence(activity=discord.Game(name="with the Discord API"))
 
         await self._update_owner_info()
-        self.log.info(f"owner user is {self.owner}")
+        self.log.info(f"Owner user is {self.owner}")
         if self.owner is not None:
             await self.owner.send(f"{config.NAME} v{config.VERSION} connected at `{datetime.now()}`")
         else:

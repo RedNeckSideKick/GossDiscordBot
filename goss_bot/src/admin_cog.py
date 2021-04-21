@@ -15,15 +15,14 @@ from .goss_cog_base import GossCogBase
 class AdminCog(GossCogBase):
     async def cog_check(self, ctx: dcmds.Context):
         self.log.info("Checking permissions for admin command")
-        authenticated = False
         if await self.bot.is_owner(ctx.author):
-            authenticated = True
+            return True
         else:
             self.log.warn(f"Unauthorized access to admin command by @{ctx.author}")
-        return authenticated
+            raise dcmds.NotOwner(f"Unauthorized access to admin command by @{ctx.author}")
 
     @dcmds.command(name='admintest')
-    async def _admintest(self, ctx: dcmds.Context, raise_exec=None):
+    async def _admintest(self, ctx: dcmds.Context, raise_exec=False):
         await ctx.reply(f"Admin authentication successful, greetings, {ctx.author.mention}.")
         if raise_exec:
             raise Exception(f"Test exception: {raise_exec}") # Testing exception handling

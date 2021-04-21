@@ -1,5 +1,6 @@
-# Ignore secret file containing token and other critical information
+# Ignore secret files containing token and other critical information
 secret.py
+service_account.json
 
 # Ignore log file directory
 logs/
