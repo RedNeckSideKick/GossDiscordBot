@@ -48,14 +48,10 @@ class ManagementCog(GossCogBase):
             self.log.info(f"Member ID was already found on the spreadsheet, giving them roles back")
 
             # Give the user back their roles and update their nickname to their real name
-            guild = member.guild
-            member_role = guild.get_role(secret.MEMBERSHIP_ROLE_ID)
-            classnum = self.wks["Member Info"].cell(found_name_cell.row, self.wks["Member Info"].columns["Class"]).value
-            advisor = self.wks["Member Info"].cell(found_name_cell.row, self.wks["Member Info"].columns["Advisor"]).value
-            name = self.wks["Member Info"].cell(found_name_cell.row, self.wks["Member Info"].columns["Name"]).value
-            class_role = guild.get_role(secret.student_info_role_ids[classnum])
-            advisor_role = guild.get_role(secret.student_info_role_ids[advisor])
-            await member.edit(nick=name, roles=[member_role, class_role, advisor_role])
+            await self.update_member_from_spreadsheet(member, found_name_cell.row)
+
+            # Send some information to the server too
+            await self.notify_arrive_depart(member, "Member Rejoined the Server \N{Door}")
 
         except gspread.CellNotFound:    # ID was not found in the spreadsheet, must be new unregistered member
             self.log.info(f"User is a new or unregistered member")
@@ -90,20 +86,19 @@ appears on your student ID__. Thank you!""")
                         # Add membership role and set nickname
                         self.log.info(f"Applying roles and nickname")
                         guild = self.bot.get_guild(secret.guild_ids[0])
-                        member_role = guild.get_role(secret.MEMBERSHIP_ROLE_ID)
-                        classnum = self.wks["Member Info"].cell(found_name_cell.row, self.wks["Member Info"].columns["Class"]).value
-                        advisor = self.wks["Member Info"].cell(found_name_cell.row, self.wks["Member Info"].columns["Advisor"]).value
-                        class_role = guild.get_role(secret.student_info_role_ids[classnum])
-                        advisor_role = guild.get_role(secret.student_info_role_ids[advisor])
                         member = guild.get_member(msg.author.id)
-                        await member.edit(nick=msg.content, roles=[member_role, class_role, advisor_role])
+                        await self.update_member_from_spreadsheet(member, found_name_cell.row, name=msg.content)
 
+                        # Notify the new member of the success and give some info
                         await msg.channel.send(f"""\
 Ok {msg.content}, you should be all set up now! I have taken the liberty to automatically set your server nickname to the name on your ID. \
 If you would prefer a different nickname on the server, right click your profile on the server for the option, or use `/nick newname` in \
 any channel to update it (remember to keep your prefered first name and last initial present).
-If something is wrong, please message {self.bot.owner.mention}, my developer, ASAP resolve the issue.
+If something is wrong, please message {self.bot.owner.mention} (my developer) ASAP to resolve the issue.
 Thank you for getting set up, we're looking forward to seeing you on the server. Boiler Up!""")
+
+                        # Send some information to the server too
+                        await self.notify_arrive_depart(member, "Member Joined the Server \N{Door}")
 
                     except gspread.CellNotFound:    # Name not found on the spreadsheet
                         await msg.channel.send(f"""\
@@ -112,3 +107,43 @@ your student ID. Please try again.""")
             except gspread.CellNotFound:    # Somehow got a DM from someone who hasn't been recorded on the server
                 self.log.warn("Direct message recieved from member with no record of joining server on spreadsheet")
 
+    # Send notification when a member leaves
+    @dcmds.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        self.log.info(f"Member {member} left the guild")
+        await self.notify_arrive_depart(member, "Member Left the Server \N{Waving Hand Sign}", 0xff0000)
+
+    # Method that sends a leave or join message in a system channel
+    async def notify_arrive_depart(self, member: discord.Member, message: str, color=0x00ff00):
+        embed = discord.Embed(color=color)
+        embed.set_author(name=message, icon_url=str(member.avatar_url))
+        embed.description = f"{member.mention}\n{member} ({member.id})"
+        embed.set_footer(text=f"{member.guild.name} | {member.guild.member_count} members")
+        await member.guild.system_channel.send(embed=embed)
+
+    # Method to apply roles and nickname to a member
+    async def update_member_from_spreadsheet(self, member: discord.Member, spreadsheet_row, name=None):
+        guild = member.guild
+        member_role = guild.get_role(secret.MEMBERSHIP_ROLE_ID)
+
+        classnum = self.wks["Member Info"].cell(spreadsheet_row, self.wks["Member Info"].columns["Class"]).value
+        advisor = self.wks["Member Info"].cell(spreadsheet_row, self.wks["Member Info"].columns["Advisor"]).value
+        if name is None:
+            name = self.wks["Member Info"].cell(spreadsheet_row, self.wks["Member Info"].columns["Name"]).value
+
+        class_role = guild.get_role(secret.student_info_role_ids.get(classnum))
+        advisor_role = guild.get_role(secret.student_info_role_ids.get(advisor))
+
+        roles = [member_role]
+        if class_role is not None:
+            roles.append(class_role)
+        else:
+            self.log.warn(f"Error with getting class role (invalid class number {classnum})")
+            await self.bot.owner.send(f"Error with getting class role for {member.mention} (invalid class number `{classnum}`)")
+        if advisor_role is not None:
+            roles.append(advisor_role)
+        else:
+            self.log.warn(f"Error with getting advisor role (invalid advisor {advisor})")
+            await self.bot.owner.send(f"Error with getting advisor role for {member.mention} (invalid advisor `{advisor}`)")
+
+        await member.edit(nick=name, roles=roles)
