@@ -1,6 +1,6 @@
 # goss_bot/config config.py
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 NAME = "Goss Bot"
 DEVELOPER = "Ethan Kessel"
 EMAIL = "eqkessel@gmail.com"

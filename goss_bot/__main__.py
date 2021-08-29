@@ -36,6 +36,7 @@ def main():
     # Add the handlers to the root logger
     logging.getLogger('').addHandler(logstream)
     logging.getLogger('').addHandler(logfile)
+    logging.getLogger('').setLevel(logging.DEBUG) # Capture all at logger level, parse down at handler level
     logging.debug("Logging configured")
 
     # Create bot and run
