@@ -1,3 +1,21 @@
+# Ignore secret files containing token and other critical information
+secret.py
+service_account.json
+
+# Ignore log file directory
+logs/
+
+# Other tokens
+tests/google-api/credentials.json
+
+tests/google-api/token.json
+
+tests/pygsheets/client_secret.json
+
+tests/pygsheets/sheets.googleapis.com-python.json
+
+tests/gspread/service_account.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
